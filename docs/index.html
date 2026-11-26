@@ -1,5 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Play an echo state network like an instrument: ten keys, rippling neurons, hotwired loops.">
 <title>Reservoir Keys</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -34,6 +39,7 @@
   --key: #1e2331; --key-down: #2c3557; --cell-off: #1f2433; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+body { margin: 0; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -73,7 +79,7 @@ select { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid va
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .rings { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 0.82rem; }
 .rings li { display: flex; gap: 8px; }
-.chip { font-size: 0.7rem; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip { font-size: 0.7rem; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); flex-shrink: 0; white-space: nowrap; align-self: start; }
 .chip.osc { color: var(--pos); border-color: var(--pos); }
 .chip.latch { color: var(--neg); border-color: var(--neg); }
 hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
@@ -92,14 +98,31 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
 .status { font-size: 0.85rem; color: var(--muted); }
 .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
 .status.on .dot { background: var(--pos); }
+.guide { display: grid; gap: 18px; }
+.guide h2 { font-family: var(--font-display); font-size: 1.45rem; margin: 0; text-wrap: balance; }
+.guide h3 { font-size: 0.98rem; margin: 0 0 4px; }
+.guide p, .guide li { margin: 0; color: var(--ink); max-width: 68ch; }
+.guide .lede { color: var(--muted); }
+.gcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px; }
+.gcols > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.guide dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+.guide dt { font-weight: 600; }
+.guide dd { margin: 0; color: var(--ink); }
+.guide ul, .guide ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.guide code, .guide pre { font-family: var(--font-mono); font-size: 0.85em; }
+.guide code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.guide pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0; overflow-x: auto; }
+.eq { font-family: var(--font-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+@media (max-width: 560px) { .guide dl { grid-template-columns: 1fr; gap: 2px; } .guide dd { margin-bottom: 8px; } }
 @media (prefers-reduced-motion: reduce) { .key { transition: none; } }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header>
     <div>
       <h1>Reservoir Keys</h1>
-      <p class="sub">Ten keys push signal into a 200-node echo state network. Its node activations play drums, a lead and a bass. Wire nodes into rings and they keep playing on their own.</p>
+      <p class="sub">Ten keys push signal into an echo state network of up to 800 neurons. Its node activations play drums, a lead and a bass. Wire nodes into rings and they keep playing on their own.</p>
     </div>
     <div class="actions">
       <span class="status" id="status"><span class="dot"></span>Sound off</span>
@@ -110,7 +133,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
 
   <div class="main">
     <section class="panel" aria-label="Reservoir">
-      <div class="row"><span class="label">Reservoir · 200 nodes</span><span class="mono" id="energy">energy 0.000</span></div>
+      <div class="row"><span class="label" id="resLabel">Reservoir · 200 neurons</span><span class="mono" id="energy">energy 0.000</span></div>
       <canvas id="pond" aria-label="Reservoir neurons on a water surface; ripples spread when a neuron's activation changes"></canvas>
       <div class="legend">
         <span><span class="sw" style="background:var(--pos)"></span>positive</span>
@@ -125,7 +148,18 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
 
     <section class="panel" aria-label="Controls">
       <div class="ctl">
-        <div class="row"><label class="label" for="rho">Spectral radius ρ</label><span class="mono" id="rhoV"></span></div>
+        <label class="label" for="size">Reservoir size</label>
+        <select id="size">
+          <option value="50">50 neurons</option>
+          <option value="100">100 neurons</option>
+          <option value="200" selected>200 neurons</option>
+          <option value="400">400 neurons</option>
+          <option value="800">800 neurons</option>
+        </select>
+        <p class="hint">Changing size builds a new random network and removes all rings. Small networks are simple and repetitive; large ones have richer, longer echoes.</p>
+      </div>
+      <div class="ctl">
+        <div class="row"><label class="label" for="rho">Spectral radius <span style="text-transform:none">ρ</span></label><span class="mono" id="rhoV"></span></div>
         <input type="range" id="rho" min="0.5" max="1.3" step="0.01" value="0.95">
         <p class="hint">Below 1 echoes fade. Near 1 they ring for a long time. Above 1 the network turns chaotic.</p>
       </div>
@@ -191,6 +225,86 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
     <div class="row"><span class="label">Input keys · hold with mouse, touch or keyboard Q to P</span><span class="hint" id="focusHint">Click anywhere on the page once so it receives your key presses</span></div>
     <div class="keys" id="keys"></div>
   </section>
+  <section class="panel guide" id="how-it-works" aria-labelledby="guideTitle">
+    <div>
+      <h2 id="guideTitle">How it works</h2>
+      <p class="lede">An echo state network (ESN) is a recurrent neural network whose internal weights are random and never trained. Input disturbs it, the disturbance echoes around the network and slowly dies out. Here those echoes are the music.</p>
+    </div>
+
+    <div class="gcols">
+      <div>
+        <h3>The network</h3>
+        <p>Between 50 and 800 neurons (200 by default, set with <b>Reservoir size</b>), each connected to about 10% of the others with random weights, scaled so the spectral radius is about 1 before ρ is applied. Every 10 ms (100 Hz) each neuron updates:</p>
+        <div class="eq">x ← (1 − a)·x + a·tanh(ρ·W·x + W<sub>in</sub>·u + noise)</div>
+        <p><b>x</b> is the activation of every neuron, between −1 and 1. <b>u</b> is the input from the ten keys. <b>a</b> is the leak rate and <b>ρ</b> the spectral radius, both on the sliders.</p>
+      </div>
+      <div>
+        <h3>The keys</h3>
+        <p>Q to P are ten input channels. Each one is wired to every neuron through its own random weight, so each key nudges the network in a different direction. Holding a key ramps its input up quickly; letting go fades it out slowly. The blue bar inside a key shows its current input level.</p>
+        <p>The page only hears your keyboard after you have clicked on it once.</p>
+      </div>
+      <div>
+        <h3>The water view</h3>
+        <ul>
+          <li><b>Dots</b> are neurons: blue when positive, red when negative, bigger and brighter when stronger.</li>
+          <li><b>Ripples</b> spread from a neuron whenever its activation changes. A steadily oscillating neuron sends out a regular train of waves.</li>
+          <li><b>Thin lines</b> light up along the strongest connections while signal is flowing through them.</li>
+          <li><b>Outlined rings</b> are hotwired loops: solid for oscillators, dashed for latches.</li>
+          <li><b>D, L, B</b> mark the neurons currently playing drums, lead and bass.</li>
+        </ul>
+        <p>The trace below shows the last 4 seconds: average activity of the whole network, and the first hotwired neuron.</p>
+      </div>
+      <div>
+        <h3>How neurons become sound</h3>
+        <p>A sequencer reads the network on a sixteenth-note grid at the current tempo.</p>
+        <dl>
+          <dt>Drums</dt><dd>Three neurons, one each for kick, snare and hi-hat. A drum hits when its neuron is above the drum threshold; louder when it is further above.</dd>
+          <dt>Lead</dt><dd>Every eighth note while the network is active. One neuron picks the pitch on the chosen scale, a second one opens the filter. Busier networks get more reverb.</dd>
+          <dt>Bass</dt><dd>Every beat, a filtered saw whose pitch follows one neuron, when that neuron is far enough from zero.</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>The controls</h3>
+        <dl>
+          <dt>Spectral radius ρ</dt><dd>How strongly the network feeds back into itself. Below 1 echoes fade, around 1 they ring for a long time, above 1 the network keeps itself going chaotically.</dd>
+          <dt>Leak rate</dt><dd>How fast neurons respond. Low values give slow, smooth swells; high values give fast, jittery changes.</dd>
+          <dt>Drum threshold</dt><dd>Lower it for busier drums, raise it for sparser ones.</dd>
+          <dt>Tempo</dt><dd>Speed of the sequencer that reads the network. It does not change the network itself.</dd>
+          <dt>Scale, Voices</dt><dd>Which notes the lead and bass may use, and which parts play.</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Hotwiring</h3>
+        <p><b>Hotwire a ring</b> picks random neurons and connects them in a loop with strong weights. The three voices then follow the ring's neurons.</p>
+        <dl>
+          <dt>Oscillator</dt><dd>One connection in the ring is inhibitory, so the loop chases its own tail forever, like an LFO. Longer rings cycle more slowly: 3 nodes about 7 Hz, 9 nodes about 2 Hz.</dd>
+          <dt>Latch</dt><dd>All connections excite each other, so one push switches the ring on and it stays on.</dd>
+          <dt>Kick network</dt><dd>Pushes every neuron randomly, which restarts rings that have settled.</dd>
+          <dt>Unwire all</dt><dd>Removes every ring. The network goes back to fading echoes.</dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Things to try</h3>
+        <ol>
+          <li>Tap one key, then hold another, and listen to how differently each echo decays.</li>
+          <li>Push ρ to 1.05 and play a few keys. The network will start improvising on its own.</li>
+          <li>Hotwire a 9-node oscillator, then a 3-node one, and hear two rhythms interlock.</li>
+          <li>Hotwire a latch, then drop the leak rate to 0.1 for slow, held drones.</li>
+          <li>Press <b>Play demo</b> to hear echoes first, then two oscillator rings taking over.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>The Python version</h3>
+        <p>The same network runs in Python with the <a href="https://sardine.raphaelforment.fr/" target="_blank" rel="noopener">Sardine</a> live-coding library and SuperCollider, so you can change the music by editing code while it plays.</p>
+        <pre>python -m pip install sardine-system numpy pynput
+sardine
+>>> exec(open("esn_live.py").read())
+>>> hotwire(1, length=9)
+>>> esn.rho = 1.05</pre>
+        <p>Press F8 in the terminal to arm the Q to P keys. <code>esn_offline.py</code> renders a WAV with numpy alone.</p>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -201,26 +315,47 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   const randn = () => { let u = 0, v = 0; while (u === 0) u = rand(); v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 
   // ---------- echo state network (same design as esn_core.py) ----------
-  const N = 200, K = 10, KEYS = "qwertyuiop", DENSITY = 0.1, GAIN = 3.0;
-  const Wb = new Float32Array(N * N), hot = new Float32Array(N * N), W = new Float32Array(N * N);
-  const scale = 1 / Math.sqrt(N * DENSITY); // circular law: spectral radius ≈ 1
-  for (let i = 0; i < N * N; i++) if (rand() < DENSITY) Wb[i] = randn() * scale;
-  const Win = new Float32Array(N * K);
-  for (let i = 0; i < N * K; i++) Win[i] = rand() * 2 - 1;
-  let x = new Float32Array(N), xn = new Float32Array(N);
-  const u = new Float32Array(K), held = new Float32Array(K);
+  const K = 10, KEYS = "qwertyuiop", DENSITY = 0.1, GAIN = 3.0;
   const P = { rho: 0.95, leak: 0.3, noise: 1e-3, thr: 0.25, bpm: 120, scale: [0, 3, 5, 7, 10] };
+  const u = new Float32Array(K), held = new Float32Array(K);
   const loops = [];
+  let N, Wb, hot, Win, x, xn, taps;
+  // sparse rows (CSR) of W = ρ·Wb + hot, so large reservoirs stay fast
+  let rowPtr, colIdx, vals;
+  const onBuild = [];
 
-  function rebuild() { for (let i = 0; i < N * N; i++) W[i] = P.rho * Wb[i] + hot[i]; }
-  rebuild();
+  function build(n) {
+    N = n;
+    Wb = new Float32Array(N * N); hot = new Float32Array(N * N);
+    const scale = 1 / Math.sqrt(N * DENSITY); // circular law: spectral radius ≈ 1
+    for (let i = 0; i < N * N; i++) if (rand() < DENSITY) Wb[i] = randn() * scale;
+    Win = new Float32Array(N * K);
+    for (let i = 0; i < N * K; i++) Win[i] = rand() * 2 - 1;
+    x = new Float32Array(N); xn = new Float32Array(N);
+    loops.length = 0;
+    taps = { drums: pickNodes(3), lead: pickNodes(2), bass: pickNodes(1)[0] };
+    rebuild();
+    onBuild.forEach(f => f());
+  }
+
+  function rebuild() {
+    let nnz = 0;
+    for (let i = 0; i < N * N; i++) if (Wb[i] || hot[i]) nnz++;
+    rowPtr = new Int32Array(N + 1); colIdx = new Int32Array(nnz); vals = new Float32Array(nnz);
+    let c = 0;
+    for (let i = 0; i < N; i++) {
+      rowPtr[i] = c; const o = i * N;
+      for (let j = 0; j < N; j++) { const w = P.rho * Wb[o + j] + hot[o + j]; if (w) { colIdx[c] = j; vals[c] = w; c++; } }
+    }
+    rowPtr[N] = c;
+  }
 
   function step() {
     for (let k = 0; k < K; k++) { const r = held[k] > u[k] ? 0.5 : 0.05; u[k] += r * (held[k] - u[k]); }
     const a = P.leak;
     for (let i = 0; i < N; i++) {
-      let s = 0; const o = i * N;
-      for (let j = 0; j < N; j++) s += W[o + j] * x[j];
+      let s = 0;
+      for (let c = rowPtr[i], e = rowPtr[i + 1]; c < e; c++) s += vals[c] * x[colIdx[c]];
       const oi = i * K;
       for (let k = 0; k < K; k++) s += Win[oi + k] * u[k];
       s += P.noise * randn();
@@ -230,8 +365,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   }
   const energy = () => { let s = 0; for (let i = 0; i < N; i++) s += Math.abs(x[i]); return s / N; };
 
-  function pickNodes(n) { const s = new Set(); while (s.size < n) s.add(Math.floor(rand() * N)); return [...s]; }
-  let taps = { drums: pickNodes(3), lead: pickNodes(2), bass: pickNodes(1)[0] };
+  function pickNodes(n) { const s = new Set(); while (s.size < Math.min(n, N)) s.add(Math.floor(rand() * N)); return [...s]; }
 
   function hotwire(kind, len) {
     const nodes = pickNodes(len);
@@ -254,7 +388,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   setInterval(() => {
     const now = performance.now(); acc += now - last; last = now;
     let n = 0;
-    while (acc >= DT && n < 10) {
+    while (N && acc >= DT && n < 10) {
       step(); acc -= DT; n++;
       hist.push([energy(), loops.length ? x[loops[0].nodes[0]] : 0]);
       if (hist.length > HLEN) hist.shift();
@@ -369,6 +503,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   bind("leak", "leak", v => v.toFixed(2));
   bind("thr", "thr", v => v.toFixed(2));
   bind("bpm", "bpm", v => v.toFixed(0) + " bpm");
+  const sizeEl = document.getElementById("size"), resLabel = document.getElementById("resLabel");
+  sizeEl.addEventListener("change", () => { build(parseInt(sizeEl.value, 10)); });
+  onBuild.push(() => { resLabel.textContent = "Reservoir · " + N + " neurons"; });
   const scaleEl = document.getElementById("scale");
   scaleEl.addEventListener("change", () => { P.scale = scaleEl.value.split(",").map(Number); });
   for (const [id, key] of [["vDrums", "drums"], ["vLead", "lead"], ["vBass", "bass"]]) {
@@ -413,25 +550,29 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   function fit(cv) { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; const w = Math.round(r.width * d), h = Math.round(r.height * d); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return d; }
 
-  // neuron positions: seeded, spread out with a few relaxation passes
-  const pos = [];
-  for (let i = 0; i < N; i++) pos.push([0.04 + rand() * 0.92, 0.06 + rand() * 0.88]);
-  for (let it = 0; it < 40; it++) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
-    const dx = (pos[i][0] - pos[j][0]) * 2, dy = pos[i][1] - pos[j][1], d2 = dx * dx + dy * dy;
-    if (d2 < 0.0035 && d2 > 0) { const f = (0.0035 - d2) * 0.6; pos[i][0] += dx * f; pos[i][1] += dy * f; pos[j][0] -= dx * f; pos[j][1] -= dy * f; }
+  // neuron positions and drawn connections, rebuilt with the reservoir
+  let pos = [], edges = [];
+  function layout() {
+    pos = [];
+    for (let i = 0; i < N; i++) pos.push([0.04 + rand() * 0.92, 0.06 + rand() * 0.88]);
+    const md = 0.7 / N; // keep neurons apart, scaled to how many there are
+    for (let it = 0; it < 30; it++) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const dx = (pos[i][0] - pos[j][0]) * 2, dy = pos[i][1] - pos[j][1], d2 = dx * dx + dy * dy;
+      if (d2 < md && d2 > 0) { const f = (md - d2) / md * 0.15; pos[i][0] += dx * f; pos[i][1] += dy * f; pos[j][0] -= dx * f; pos[j][1] -= dy * f; }
+    }
+    for (const p of pos) { p[0] = Math.min(0.97, Math.max(0.03, p[0])); p[1] = Math.min(0.95, Math.max(0.05, p[1])); }
+    edges = [];
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (i !== j && Wb[i * N + j]) edges.push([i, j, Math.abs(Wb[i * N + j])]);
+    edges.sort((a, b) => b[2] - a[2]); edges.length = Math.min(edges.length, Math.round(2.5 * N));
+    lastX = new Float32Array(N);
   }
-  for (const p of pos) { p[0] = Math.min(0.97, Math.max(0.03, p[0])); p[1] = Math.min(0.95, Math.max(0.05, p[1])); }
-  // strongest recurrent connections, drawn when signal flows through them
-  const edges = [];
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (i !== j && Wb[i * N + j]) edges.push([i, j, Math.abs(Wb[i * N + j])]);
-  edges.sort((a, b) => b[2] - a[2]); edges.length = 500;
 
   // water: 2D damped wave equation on a low-res height field
   const GW = 200, GH = 100;
   let hCur = new Float32Array(GW * GH), hPrev = new Float32Array(GW * GH);
   const water = document.createElement("canvas"); water.width = GW; water.height = GH;
   const wctx = water.getContext("2d"), img = wctx.createImageData(GW, GH);
-  const lastX = new Float32Array(N);
+  let lastX;
   const cell = i => Math.round(pos[i][1] * (GH - 3) + 1) * GW + Math.round(pos[i][0] * (GW - 3) + 1);
   function waveStep() {
     for (let i = 0; i < N; i++) {
@@ -478,7 +619,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
     // neurons
     const ringSet = new Set(loops.flatMap(l => l.nodes));
     const tapLabel = new Map(); taps.drums.forEach(n => tapLabel.set(n, "D")); taps.lead.forEach(n => tapLabel.set(n, "L")); tapLabel.set(taps.bass, "B");
-    const r0 = Math.max(2, PW / 260);
+    const r0 = Math.max(1.6, PW / 260 * Math.sqrt(200 / N));
     g.font = `600 ${Math.round(r0 * 2.6)}px "IBM Plex Mono", monospace`; g.textAlign = "left"; g.textBaseline = "middle";
     for (let i = 0; i < N; i++) {
       const v = x[i], a = Math.min(1, Math.abs(v) * 1.5), px = pos[i][0] * PW, py = pos[i][1] * PH;
@@ -504,6 +645,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
     energyEl.textContent = "energy " + energy().toFixed(3);
     requestAnimationFrame(draw);
   }
+  onBuild.push(layout, renderRings, () => { hist.length = 0; hCur.fill(0); hPrev.fill(0); sizeEl.value = String(N); });
+  build(200);
   requestAnimationFrame(draw);
 
   // keyboard focus: the page only hears Q..P while it has focus
@@ -515,3 +658,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
   showFocus();
 })();
 </script>
+
+</body>
+</html>
