@@ -1,0 +1,517 @@
+<title>Reservoir Keys</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an instrument panel — reservoir scope on the left, knobs on the right, a row of ten keys underneath */
+:root {
+  --bg: #eceef3;
+  --panel: #f8f9fb;
+  --ink: #161a26;
+  --muted: #5b6275;
+  --line: #d3d7e1;
+  --pos: #2b47d6;      /* positive activation */
+  --neg: #c2335b;      /* negative activation */
+  --accent: #2b47d6;
+  --accent-ink: #ffffff;
+  --key: #ffffff;
+  --key-down: #dfe4fb;
+  --cell-off: #e3e6ee;
+  --font-display: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10131b; --panel: #171b26; --ink: #e7e9f1; --muted: #9298ab; --line: #2a3040;
+    --pos: #7d93ff; --neg: #ff6f93; --accent: #7d93ff; --accent-ink: #0e1220;
+    --key: #1e2331; --key-down: #2c3557; --cell-off: #1f2433; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10131b; --panel: #171b26; --ink: #e7e9f1; --muted: #9298ab; --line: #2a3040;
+  --pos: #7d93ff; --neg: #ff6f93; --accent: #7d93ff; --accent-ink: #0e1220;
+  --key: #1e2331; --key-down: #2c3557; --cell-off: #1f2433; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.7rem, 3.5vw, 2.4rem); line-height: 1.05; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 60ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button, select { font: inherit; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px;
+  padding: 8px 14px; font-weight: 500; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:focus-visible, .key:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 820px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+canvas { display: block; width: 100%; }
+#pond { aspect-ratio: 2 / 1; max-width: 100%; border-radius: 10px; }
+#trace { height: 90px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: var(--muted); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.ctl { display: grid; gap: 4px; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 0.8rem; color: var(--muted); margin: 0; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+select { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.rings { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 0.82rem; }
+.rings li { display: flex; gap: 8px; }
+.chip { font-size: 0.7rem; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.osc { color: var(--pos); border-color: var(--pos); }
+.chip.latch { color: var(--neg); border-color: var(--neg); }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
+.keys { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 560px) { .keys { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.key {
+  position: relative; border: 1px solid var(--line); border-bottom-width: 4px; background: var(--key); color: var(--ink);
+  border-radius: 10px; height: 92px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden;
+  transition: transform 60ms, background 60ms;
+}
+.key b { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; z-index: 1; }
+.key span { font-size: 0.7rem; color: var(--muted); z-index: 1; }
+.key .lvl { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--accent); opacity: 0.22; }
+.key[aria-pressed="true"] { background: var(--key-down); transform: translateY(2px); border-bottom-width: 2px; border-color: var(--accent); }
+.status { font-size: 0.85rem; color: var(--muted); }
+.status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+.status.on .dot { background: var(--pos); }
+@media (prefers-reduced-motion: reduce) { .key { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Reservoir Keys</h1>
+      <p class="sub">Ten keys push signal into a 200-node echo state network. Its node activations play drums, a lead and a bass. Wire nodes into rings and they keep playing on their own.</p>
+    </div>
+    <div class="actions">
+      <span class="status" id="status"><span class="dot"></span>Sound off</span>
+      <button class="btn primary" id="audioBtn">Start sound</button>
+      <button class="btn" id="demoBtn">Play demo</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="panel" aria-label="Reservoir">
+      <div class="row"><span class="label">Reservoir · 200 nodes</span><span class="mono" id="energy">energy 0.000</span></div>
+      <canvas id="pond" aria-label="Reservoir neurons on a water surface; ripples spread when a neuron's activation changes"></canvas>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--pos)"></span>positive</span>
+        <span><span class="sw" style="background:var(--neg)"></span>negative</span>
+        <span><span class="sw" style="border:2px solid var(--ink)"></span>wired into a ring</span>
+        <span>ripples = change in activation</span>
+        <span>D · L · B = node feeding drums, lead, bass</span>
+      </div>
+      <div class="row"><span class="label">Last 4 seconds</span><span class="legend"><span><span class="sw" style="background:var(--pos)"></span>mean |activation|</span><span><span class="sw" style="background:var(--neg)"></span>first ring node</span></span></div>
+      <canvas id="trace" aria-label="Energy over time"></canvas>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <div class="ctl">
+        <div class="row"><label class="label" for="rho">Spectral radius ρ</label><span class="mono" id="rhoV"></span></div>
+        <input type="range" id="rho" min="0.5" max="1.3" step="0.01" value="0.95">
+        <p class="hint">Below 1 echoes fade. Near 1 they ring for a long time. Above 1 the network turns chaotic.</p>
+      </div>
+      <div class="ctl">
+        <div class="row"><label class="label" for="leak">Leak rate</label><span class="mono" id="leakV"></span></div>
+        <input type="range" id="leak" min="0.05" max="1" step="0.01" value="0.3">
+      </div>
+      <div class="split">
+        <div class="ctl">
+          <div class="row"><label class="label" for="thr">Drum threshold</label><span class="mono" id="thrV"></span></div>
+          <input type="range" id="thr" min="0.05" max="0.8" step="0.01" value="0.25">
+        </div>
+        <div class="ctl">
+          <div class="row"><label class="label" for="bpm">Tempo</label><span class="mono" id="bpmV"></span></div>
+          <input type="range" id="bpm" min="70" max="170" step="1" value="120">
+        </div>
+      </div>
+      <div class="split">
+        <div class="ctl"><label class="label" for="scale">Scale</label>
+          <select id="scale">
+            <option value="0,3,5,7,10">Minor pentatonic</option>
+            <option value="0,2,4,7,9">Major pentatonic</option>
+            <option value="0,2,3,5,7,9,10">Dorian</option>
+            <option value="0,2,4,6,8,10">Whole tone</option>
+          </select>
+        </div>
+        <div class="ctl"><span class="label">Voices</span>
+          <div class="checks">
+            <label><input type="checkbox" id="vDrums" checked>Drums</label>
+            <label><input type="checkbox" id="vLead" checked>Lead</label>
+            <label><input type="checkbox" id="vBass" checked>Bass</label>
+          </div>
+        </div>
+      </div>
+      <hr>
+      <span class="label">Hotwire</span>
+      <div class="split">
+        <div class="ctl"><label class="label" for="kind">Ring type</label>
+          <select id="kind">
+            <option value="osc">Oscillator (keeps cycling)</option>
+            <option value="latch">Latch (stays on)</option>
+          </select>
+        </div>
+        <div class="ctl"><label class="label" for="len">Ring length</label>
+          <select id="len">
+            <option value="3">3 nodes · ~7 Hz</option>
+            <option value="5" selected>5 nodes · ~3.7 Hz</option>
+            <option value="7">7 nodes · ~2.6 Hz</option>
+            <option value="9">9 nodes · ~2 Hz</option>
+          </select>
+        </div>
+      </div>
+      <div class="btnrow">
+        <button class="btn primary" id="wireBtn">Hotwire a ring</button>
+        <button class="btn" id="kickBtn">Kick network</button>
+        <button class="btn" id="unwireBtn">Unwire all</button>
+      </div>
+      <ul class="rings" id="rings"><li class="hint">No rings yet. Echoes fade about two seconds after you let go.</li></ul>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="Keys">
+    <div class="row"><span class="label">Input keys · hold with mouse, touch or keyboard Q to P</span><span class="hint" id="focusHint">Click anywhere on the page once so it receives your key presses</span></div>
+    <div class="keys" id="keys"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ---------- seeded random ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const rand = mulberry32(7);
+  const randn = () => { let u = 0, v = 0; while (u === 0) u = rand(); v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+
+  // ---------- echo state network (same design as esn_core.py) ----------
+  const N = 200, K = 10, KEYS = "qwertyuiop", DENSITY = 0.1, GAIN = 3.0;
+  const Wb = new Float32Array(N * N), hot = new Float32Array(N * N), W = new Float32Array(N * N);
+  const scale = 1 / Math.sqrt(N * DENSITY); // circular law: spectral radius ≈ 1
+  for (let i = 0; i < N * N; i++) if (rand() < DENSITY) Wb[i] = randn() * scale;
+  const Win = new Float32Array(N * K);
+  for (let i = 0; i < N * K; i++) Win[i] = rand() * 2 - 1;
+  let x = new Float32Array(N), xn = new Float32Array(N);
+  const u = new Float32Array(K), held = new Float32Array(K);
+  const P = { rho: 0.95, leak: 0.3, noise: 1e-3, thr: 0.25, bpm: 120, scale: [0, 3, 5, 7, 10] };
+  const loops = [];
+
+  function rebuild() { for (let i = 0; i < N * N; i++) W[i] = P.rho * Wb[i] + hot[i]; }
+  rebuild();
+
+  function step() {
+    for (let k = 0; k < K; k++) { const r = held[k] > u[k] ? 0.5 : 0.05; u[k] += r * (held[k] - u[k]); }
+    const a = P.leak;
+    for (let i = 0; i < N; i++) {
+      let s = 0; const o = i * N;
+      for (let j = 0; j < N; j++) s += W[o + j] * x[j];
+      const oi = i * K;
+      for (let k = 0; k < K; k++) s += Win[oi + k] * u[k];
+      s += P.noise * randn();
+      xn[i] = (1 - a) * x[i] + a * Math.tanh(s);
+    }
+    const t = x; x = xn; xn = t;
+  }
+  const energy = () => { let s = 0; for (let i = 0; i < N; i++) s += Math.abs(x[i]); return s / N; };
+
+  function pickNodes(n) { const s = new Set(); while (s.size < n) s.add(Math.floor(rand() * N)); return [...s]; }
+  let taps = { drums: pickNodes(3), lead: pickNodes(2), bass: pickNodes(1)[0] };
+
+  function hotwire(kind, len) {
+    const nodes = pickNodes(len);
+    for (let q = 0; q < len; q++) { const a = nodes[q], b = nodes[(q + 1) % len]; hot[b * N + a] += GAIN; }
+    if (kind === "osc") hot[nodes[0] * N + nodes[len - 1]] *= -1;
+    loops.push({ kind, nodes });
+    rebuild();
+    const all = loops.flatMap(l => l.nodes);
+    taps.drums = all.slice(0, 3); while (taps.drums.length < 3) taps.drums.push(pickNodes(1)[0]);
+    taps.lead = all.length >= 5 ? all.slice(3, 5) : all.slice(0, 2);
+    kick(0.5);
+    renderRings();
+  }
+  function unwire() { hot.fill(0); loops.length = 0; rebuild(); renderRings(); }
+  function kick(amt = 1) { for (let i = 0; i < N; i++) x[i] += amt * randn(); }
+
+  // ---------- run the network at 100 Hz ----------
+  const DT = 10; let last = performance.now(), acc = 0;
+  const hist = [], HLEN = 400;
+  setInterval(() => {
+    const now = performance.now(); acc += now - last; last = now;
+    let n = 0;
+    while (acc >= DT && n < 10) {
+      step(); acc -= DT; n++;
+      hist.push([energy(), loops.length ? x[loops[0].nodes[0]] : 0]);
+      if (hist.length > HLEN) hist.shift();
+    }
+    if (n === 10) acc = 0;
+  }, DT);
+
+  // ---------- audio ----------
+  let ctx = null, master, verbSend, nextTime = 0, step16 = 0, noiseBuf;
+  const statusEl = document.getElementById("status"), audioBtn = document.getElementById("audioBtn");
+  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  function toNote(v, root, span) {
+    const sc = P.scale; const t = Math.min(0.999, Math.max(0, (v + 1) / 2));
+    const deg = Math.floor(t * span);
+    return root + 12 * Math.floor(deg / sc.length) + sc[deg % sc.length];
+  }
+  function startAudio() {
+    if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    master = ctx.createGain(); master.gain.value = 0.8; master.connect(comp); comp.connect(ctx.destination);
+    const conv = ctx.createConvolver(); const len = ctx.sampleRate * 2.2;
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    conv.buffer = ir; verbSend = ctx.createGain(); verbSend.gain.value = 0.35; verbSend.connect(conv); conv.connect(master);
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    nextTime = ctx.currentTime + 0.05;
+    setInterval(schedule, 25);
+    statusEl.classList.add("on"); statusEl.lastChild.textContent = "Sound on"; audioBtn.textContent = "Sound on"; audioBtn.disabled = true;
+  }
+  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function kickDrum(t, amp) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.003, amp, 0.3); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.35);
+  }
+  function noiseHit(t, amp, hp, dur, verb) {
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = hp;
+    const g = ctx.createGain(); env(g, t, 0.002, amp, dur);
+    s.connect(f); f.connect(g); g.connect(master); if (verb) g.connect(verbSend);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+  }
+  function snare(t, amp) {
+    noiseHit(t, amp * 0.7, 1200, 0.18, true);
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "triangle"; o.frequency.value = 185;
+    env(g, t, 0.002, amp * 0.4, 0.1); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.15);
+  }
+  function lead(t, note, bright, room) {
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = bright; f.Q.value = 4;
+    const g = ctx.createGain(); env(g, t, 0.01, 0.18, 0.45);
+    for (const [type, mult, det] of [["triangle", 1, -6], ["triangle", 1, 6], ["sine", 2, 0]]) {
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = mtof(note) * mult; o.detune.value = det;
+      o.connect(f); o.start(t); o.stop(t + 0.6);
+    }
+    f.connect(g); g.connect(master);
+    const s = ctx.createGain(); s.gain.value = room; g.connect(s); s.connect(verbSend);
+  }
+  function bass(t, note, dur) {
+    const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = "sawtooth"; o.frequency.value = mtof(note);
+    f.type = "lowpass"; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(180, t + dur); f.Q.value = 6;
+    env(g, t, 0.01, 0.32, dur); o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const on = { drums: true, lead: true, bass: true };
+  function schedule() {
+    const sixteenth = 60 / P.bpm / 4;
+    while (nextTime < ctx.currentTime + 0.1) {
+      const t = nextTime;
+      if (on.drums) {
+        const fns = [kickDrum, snare, (tt, a) => noiseHit(tt, a * 0.35, 7000, 0.05, false)];
+        taps.drums.forEach((node, i) => { const v = x[node]; if (v > P.thr) fns[i](t, Math.min(1, 0.3 + v)); });
+      }
+      const e = energy();
+      if (on.lead && step16 % 2 === 0 && e > 0.02)
+        lead(t, toNote(x[taps.lead[0]], 60, 12), 400 + 4000 * Math.abs(x[taps.lead[1] ?? taps.lead[0]]), 0.2 + 0.6 * Math.min(1, e * 2));
+      if (on.bass && step16 % 4 === 0 && Math.abs(x[taps.bass]) > 0.1)
+        bass(t, toNote(x[taps.bass], 36, 5), sixteenth * 3.5);
+      nextTime += sixteenth; step16++;
+    }
+  }
+  audioBtn.addEventListener("click", startAudio);
+
+  // ---------- keys ----------
+  const keysEl = document.getElementById("keys"), keyBtns = [];
+  [...KEYS].forEach((c, k) => {
+    const b = document.createElement("button");
+    b.className = "key"; b.type = "button"; b.setAttribute("aria-pressed", "false"); b.setAttribute("aria-label", "Input " + (k + 1) + ", key " + c.toUpperCase());
+    b.innerHTML = `<div class="lvl"></div><b>${c.toUpperCase()}</b><span>in ${k + 1}</span>`;
+    const down = e => { e.preventDefault(); startAudio(); press(k, true); try { b.setPointerCapture(e.pointerId); } catch (_) {} };
+    const up = () => press(k, false);
+    b.addEventListener("pointerdown", down); b.addEventListener("pointerup", up); b.addEventListener("pointercancel", up); b.addEventListener("lostpointercapture", up);
+    keysEl.appendChild(b); keyBtns.push(b);
+  });
+  function press(k, v) { held[k] = v ? 1 : 0; keyBtns[k].setAttribute("aria-pressed", v ? "true" : "false"); }
+  window.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = KEYS.indexOf(e.key.toLowerCase()); if (k < 0) return;
+    e.preventDefault(); if (!e.repeat) { startAudio(); press(k, true); }
+  });
+  window.addEventListener("keyup", e => { const k = KEYS.indexOf(e.key.toLowerCase()); if (k >= 0) press(k, false); });
+  window.addEventListener("blur", () => { for (let k = 0; k < K; k++) press(k, false); });
+
+  // ---------- controls ----------
+  const bind = (id, key, fmt, after) => {
+    const el = document.getElementById(id), out = document.getElementById(id + "V");
+    const upd = () => { P[key] = parseFloat(el.value); out.textContent = fmt(P[key]); after && after(); };
+    el.addEventListener("input", upd); upd();
+  };
+  bind("rho", "rho", v => v.toFixed(2), rebuild);
+  bind("leak", "leak", v => v.toFixed(2));
+  bind("thr", "thr", v => v.toFixed(2));
+  bind("bpm", "bpm", v => v.toFixed(0) + " bpm");
+  const scaleEl = document.getElementById("scale");
+  scaleEl.addEventListener("change", () => { P.scale = scaleEl.value.split(",").map(Number); });
+  for (const [id, key] of [["vDrums", "drums"], ["vLead", "lead"], ["vBass", "bass"]]) {
+    const el = document.getElementById(id); el.addEventListener("change", () => { on[key] = el.checked; });
+  }
+  const kindEl = document.getElementById("kind"), lenEl = document.getElementById("len");
+  document.getElementById("wireBtn").addEventListener("click", () => { startAudio(); hotwire(kindEl.value, parseInt(lenEl.value, 10)); });
+  document.getElementById("unwireBtn").addEventListener("click", unwire);
+  document.getElementById("kickBtn").addEventListener("click", () => { startAudio(); kick(1); });
+
+  const ringsEl = document.getElementById("rings");
+  function renderRings() {
+    if (!loops.length) { ringsEl.innerHTML = '<li class="hint">No rings yet. Echoes fade about two seconds after you let go.</li>'; return; }
+    ringsEl.innerHTML = loops.map((l, i) =>
+      `<li><span class="chip ${l.kind}">${l.kind === "osc" ? "oscillator" : "latch"}</span><span class="mono">ring ${i + 1}: ${l.nodes.join(" → ")} → ${l.nodes[0]}</span></li>`).join("");
+  }
+
+  // ---------- demo ----------
+  const demoBtn = document.getElementById("demoBtn"); let demoTimers = [];
+  demoBtn.addEventListener("click", () => {
+    startAudio(); demoTimers.forEach(clearTimeout); demoTimers = []; unwire();
+    const script = [[0.3, 0.8, "q"], [1.3, 1.8, "t"], [2.3, 3.3, "p"], [3.8, 4.1, "w"], [4.3, 4.6, "w"], [5.8, 6.8, "y"]];
+    for (const [a, b, c] of script) {
+      const k = KEYS.indexOf(c);
+      demoTimers.push(setTimeout(() => press(k, true), a * 1000), setTimeout(() => press(k, false), b * 1000));
+    }
+    demoTimers.push(setTimeout(() => hotwire("osc", 5), 9500), setTimeout(() => hotwire("osc", 7), 13500));
+    demoBtn.textContent = "Demo playing…";
+    demoTimers.push(setTimeout(() => { demoBtn.textContent = "Play demo"; }, 15000));
+  });
+
+  // ---------- drawing: neurons floating on a water surface ----------
+  const pond = document.getElementById("pond"), trace = document.getElementById("trace"), energyEl = document.getElementById("energy");
+  let C = {}, RGB = {};
+  function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = [...h].map(c => c + c).join(""); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function readColors() {
+    const s = getComputedStyle(document.documentElement);
+    for (const k of ["pos", "neg", "ink", "muted", "line", "cell-off", "panel", "bg"]) { C[k] = s.getPropertyValue("--" + k).trim(); RGB[k] = hexToRgb(C[k]); }
+  }
+  readColors();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  function fit(cv) { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; const w = Math.round(r.width * d), h = Math.round(r.height * d); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return d; }
+
+  // neuron positions: seeded, spread out with a few relaxation passes
+  const pos = [];
+  for (let i = 0; i < N; i++) pos.push([0.04 + rand() * 0.92, 0.06 + rand() * 0.88]);
+  for (let it = 0; it < 40; it++) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+    const dx = (pos[i][0] - pos[j][0]) * 2, dy = pos[i][1] - pos[j][1], d2 = dx * dx + dy * dy;
+    if (d2 < 0.0035 && d2 > 0) { const f = (0.0035 - d2) * 0.6; pos[i][0] += dx * f; pos[i][1] += dy * f; pos[j][0] -= dx * f; pos[j][1] -= dy * f; }
+  }
+  for (const p of pos) { p[0] = Math.min(0.97, Math.max(0.03, p[0])); p[1] = Math.min(0.95, Math.max(0.05, p[1])); }
+  // strongest recurrent connections, drawn when signal flows through them
+  const edges = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (i !== j && Wb[i * N + j]) edges.push([i, j, Math.abs(Wb[i * N + j])]);
+  edges.sort((a, b) => b[2] - a[2]); edges.length = 500;
+
+  // water: 2D damped wave equation on a low-res height field
+  const GW = 200, GH = 100;
+  let hCur = new Float32Array(GW * GH), hPrev = new Float32Array(GW * GH);
+  const water = document.createElement("canvas"); water.width = GW; water.height = GH;
+  const wctx = water.getContext("2d"), img = wctx.createImageData(GW, GH);
+  const lastX = new Float32Array(N);
+  const cell = i => Math.round(pos[i][1] * (GH - 3) + 1) * GW + Math.round(pos[i][0] * (GW - 3) + 1);
+  function waveStep() {
+    for (let i = 0; i < N; i++) {
+      const d = x[i] - lastX[i]; lastX[i] = x[i];
+      if (Math.abs(d) > 0.004) { const c = cell(i); hCur[c] += d * 60; hCur[c + 1] += d * 30; hCur[c - 1] += d * 30; hCur[c + GW] += d * 30; hCur[c - GW] += d * 30; }
+    }
+    for (let y = 1; y < GH - 1; y++) for (let xx = 1; xx < GW - 1; xx++) {
+      const i = y * GW + xx;
+      hPrev[i] = ((hCur[i - 1] + hCur[i + 1] + hCur[i - GW] + hCur[i + GW]) * 0.5 - hPrev[i]) * 0.975;
+    }
+    const t = hCur; hCur = hPrev; hPrev = t;
+  }
+  function shadeWater() {
+    const base = RGB["cell-off"], hi = RGB.pos, lo = RGB.neg, px = img.data;
+    for (let y = 0; y < GH; y++) for (let xx = 0; xx < GW; xx++) {
+      const i = y * GW + xx;
+      const sl = xx > 0 && xx < GW - 1 && y > 0 && y < GH - 1 ? (hCur[i - 1] - hCur[i + 1]) + (hCur[i - GW] - hCur[i + GW]) : 0;
+      let v = hCur[i] * 0.05 + sl * 0.12; v = Math.max(-1, Math.min(1, v));
+      const tgt = v >= 0 ? hi : lo, t = Math.abs(v) * (v >= 0 ? 0.9 : 0.55), o = i * 4;
+      px[o] = base[0] + (tgt[0] - base[0]) * t; px[o + 1] = base[1] + (tgt[1] - base[1]) * t; px[o + 2] = base[2] + (tgt[2] - base[2]) * t; px[o + 3] = 255;
+    }
+    wctx.putImageData(img, 0, 0);
+  }
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  function draw() {
+    waveStep(); waveStep();
+    shadeWater();
+    const d = fit(pond), g = pond.getContext("2d"), PW = pond.width, PH = pond.height;
+    g.imageSmoothingEnabled = true; g.drawImage(water, 0, 0, PW, PH);
+    // signal flowing along connections
+    g.lineWidth = 1 * d;
+    for (const [i, j, w] of edges) {
+      const flow = Math.abs(w * x[j]); if (flow < 0.06) continue;
+      g.strokeStyle = rgba(x[j] >= 0 ? RGB.pos : RGB.neg, Math.min(0.55, flow * 0.9));
+      g.beginPath(); g.moveTo(pos[j][0] * PW, pos[j][1] * PH); g.lineTo(pos[i][0] * PW, pos[i][1] * PH); g.stroke();
+    }
+    // hotwired rings
+    g.lineWidth = 2.2 * d;
+    for (const l of loops) {
+      g.strokeStyle = rgba(RGB.ink, 0.75); g.setLineDash(l.kind === "latch" ? [6 * d, 4 * d] : []);
+      g.beginPath(); l.nodes.forEach((n, q) => { const px = pos[n][0] * PW, py = pos[n][1] * PH; q ? g.lineTo(px, py) : g.moveTo(px, py); }); g.closePath(); g.stroke();
+    }
+    g.setLineDash([]);
+    // neurons
+    const ringSet = new Set(loops.flatMap(l => l.nodes));
+    const tapLabel = new Map(); taps.drums.forEach(n => tapLabel.set(n, "D")); taps.lead.forEach(n => tapLabel.set(n, "L")); tapLabel.set(taps.bass, "B");
+    const r0 = Math.max(2, PW / 260);
+    g.font = `600 ${Math.round(r0 * 2.6)}px "IBM Plex Mono", monospace`; g.textAlign = "left"; g.textBaseline = "middle";
+    for (let i = 0; i < N; i++) {
+      const v = x[i], a = Math.min(1, Math.abs(v) * 1.5), px = pos[i][0] * PW, py = pos[i][1] * PH;
+      const col = v >= 0 ? RGB.pos : RGB.neg, r = r0 * (1 + a * 1.6);
+      if (a > 0.25) { g.fillStyle = rgba(col, a * 0.25); g.beginPath(); g.arc(px, py, r * 2.4, 0, 7); g.fill(); }
+      g.fillStyle = a > 0.03 ? rgba(col, 0.35 + a * 0.65) : rgba(RGB.muted, 0.45);
+      g.beginPath(); g.arc(px, py, r, 0, 7); g.fill();
+      if (ringSet.has(i)) { g.strokeStyle = C.ink; g.lineWidth = 1.5 * d; g.stroke(); }
+      if (tapLabel.has(i)) { g.fillStyle = C.ink; g.fillText(tapLabel.get(i), px + r + 3 * d, py); }
+    }
+    // trace
+    const dt = fit(trace), t2 = trace.getContext("2d"), W2 = trace.width, H2 = trace.height;
+    t2.clearRect(0, 0, W2, H2);
+    t2.strokeStyle = C.line; t2.lineWidth = 1 * dt; t2.beginPath(); t2.moveTo(0, H2 / 2); t2.lineTo(W2, H2 / 2); t2.stroke();
+    const line = (idx, col, sc, off) => {
+      t2.strokeStyle = col; t2.lineWidth = 1.6 * dt; t2.beginPath();
+      hist.forEach((h, j) => { const px = (j + HLEN - hist.length) / (HLEN - 1) * W2, py = off - h[idx] * sc; j ? t2.lineTo(px, py) : t2.moveTo(px, py); });
+      t2.stroke();
+    };
+    line(1, C.neg, H2 * 0.42, H2 / 2);
+    line(0, C.pos, H2 * 0.9, H2 * 0.95);
+    for (let k = 0; k < K; k++) keyBtns[k].firstChild.style.height = (u[k] * 100).toFixed(0) + "%";
+    energyEl.textContent = "energy " + energy().toFixed(3);
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+
+  // keyboard focus: the page only hears Q..P while it has focus
+  const focusHint = document.getElementById("focusHint");
+  const showFocus = () => { focusHint.textContent = document.hasFocus() ? "Keyboard ready: hold Q to P" : "Click anywhere on the page once so it receives your key presses"; };
+  window.addEventListener("focus", showFocus); window.addEventListener("blur", showFocus);
+  document.addEventListener("pointerdown", () => { window.focus(); setTimeout(showFocus, 0); });
+  try { window.focus(); } catch (_) {}
+  showFocus();
+})();
+</script>
